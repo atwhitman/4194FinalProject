@@ -23,7 +23,7 @@ class BasicBlock(nn.Module):
     
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,norm_layer=None):
         
-        super(BasicBlock, self)__init__()
+        super(BasicBlock, self).__init__()
         
         # define batch normalization method
         bn = nn.BatchNorm1d
@@ -71,7 +71,7 @@ class resnet(nn.Module):
         
         
         self.conv1 = nn.Conv1d(in_chan, base_chan, kernel_size=5, stride=2, padding=2, bias=False)
-        self.bn1   = self.BatchNorm1d(base_chan)
+        self.bn1   = nn.BatchNorm1d(base_chan)
         self.relu  = nn.ReLU(inplace=True)
         
         self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2, padding=1)
@@ -100,13 +100,13 @@ class resnet(nn.Module):
                     
         
         
-    def make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, stride=1):
         downsample=None
         
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
                 nn.Conv1d(self.inplanes, planes*block.expansion, 
-                          kernel_size=1, stride=stride, bias=False)
+                          kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm1d(planes * block.expansion)
             )
             
