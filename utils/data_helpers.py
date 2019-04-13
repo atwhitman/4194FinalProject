@@ -82,7 +82,7 @@ def split_data(split, save_dir=None):
 
 
 # this function loads existining training and testing data 
-def load_data(split=None, data_dir=None):
+def load_data(padded=True, split=None, data_dir=None):
     # assume 70/30% data split, to compare with other literature
     if split is None:
         split = 0.7
@@ -90,9 +90,12 @@ def load_data(split=None, data_dir=None):
     # determine file path
     if data_dir is None:
         data_dir = 'data/combined/'
-        
-    append = str(int(split*100)) + '.npz'
     
+    if padded:
+        append = str(int(split*100)) + '_padded.npz'
+    else:
+        append = str(int(split*100)) + '.npz'
+        
     test_file  = data_dir + 'har_test_data'  + append
     train_file = data_dir + 'har_train_data' + append
     
