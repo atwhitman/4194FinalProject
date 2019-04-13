@@ -1,6 +1,23 @@
 from pathlib import Path
 import numpy as np
 
+import torch.utils.data 
+
+class har_dataset(torch.utils.data.Dataset):
+    
+    def __init__(self, data, labels):
+        self.data = data
+        self.labels = labels
+        
+    def __getitem__(self, index):
+        data = self.data[index]
+        label = self.labels[index]
+        
+        return data, label
+    
+    def __len__(self):
+        return self.data.shape[0]
+
 
 # saves 2 .npz files
 #                    data shape                          label shape
@@ -39,7 +56,7 @@ def split_data(split, save_dir=None):
         
         # experiments start from 1, arrays are 0-indexed
         exp_id = int(row[0])-1       
-        label_id = int(row[2])
+        label_id = int(row[2])-1
         start = int(row[3])
         end   = int(row[4])
         
@@ -129,7 +146,7 @@ def pad_data(data_dir=None, split=None):
     
     
     # load data to be zero-padded
-    xtr, ytr, xts, yts = load_data(split=split, data_dir=data_dir)
+    xtr, ytr, xts, yts = load_data(padded=False, split=split, data_dir=data_dir)
        
     # determine the sample with the greatest length
     m_tr = max(xtr, key=len)
@@ -139,6 +156,17 @@ def pad_data(data_dir=None, split=None):
         padlength = len(m_tr)
     else:
         padlength = len(m_ts)
+    
+    # pad to powers of 2
+    powers = np.array([1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192])
+    
+    print('old padlength = {}'.format(padlength))
+    
+    valid_powers = np.where(powers >= padlength)
+    idx=valid_powers[0][0]
+    padlength = powers[idx]
+    
+    print('new padlength = {}'.format(padlength))
         
     # pad data to length of longest sample
     xtr_p = [ np.pad(x, ((0,padlength-len(x)),(0,0)), mode='constant', constant_values=0) for x in xtr ]
