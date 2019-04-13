@@ -4,49 +4,43 @@ import torch
 import torch.nn as nn
 import math
 
-#torch.nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True)
-
-# torch.nn.BatchNorm1d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-
-
-
 # defines a basic convolutional function
-def conv(in_planes, out_planes, kernel_size=3, stride=1):
-    return nn.Conv1d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, bias=False)
+def conv3x1(in_planes, out_planes, stride=1):
+    return nn.Conv1d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
-
-
-
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv1d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 class BasicBlock(nn.Module):
     expansion = 1
     
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,norm_layer=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, norm_layer=None):
+        super(BasicBlock, self).__init__()       
         
-        super(BasicBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm1d
         
-        # define batch normalization method
-        bn = nn.BatchNorm1d
+        self.conv1 = conv3x1(inplanes, planes, stride)
+        self.conv2 = conv3x1(  planes, planes)
         
+        self.bn1   = norm_layer(planes)
+        self.bn2   = norm_layer(planes)
         
-        self.conv1 = conv(inplanes, planes, stride)
-        self.bn1   = bn(planes)
         self.relu  = nn.ReLU(inplace=True)
-        
-        self.conv2 = conv(planes, planes)
-        self.bn2   = bn(planes)
         
         self.downsample = downsample
         self.stride = stride
+        
+        print('inplanes {}  planes {}'.format(inplanes, planes))
         
     def forward(self, x):
         identity = x
         
         out = self.conv1(x)
-        out = self.bn1(x)
+        out = self.bn1(out)
         out = self.relu(out)
         
-        out = self.conv2(x)
+        out = self.conv2(out)
         out = self.bn2(out)
         
         if self.downsample is not None:
@@ -55,37 +49,33 @@ class BasicBlock(nn.Module):
         out += identity
         out = self.relu(out)
         
-        return out
-        
+        return out       
         
         
 class resnet(nn.Module):
     
-    def __init__(self, block, layers, in_chan=6, feat_size=5, base_chan=32, num_classes=12):
-        
-        self.inplanes = base_chan
-        
-        super(resnet, self).__init__()
+    def __init__(self, block, layers, in_chan=6, base_chan=36, num_classes=12):
+        super(resnet, self).__init__() 
         
         norm_layer = nn.BatchNorm1d
         
-        
+        planes = [ base_chan*2**i for i in range(4) ]
+        self.inplanes = planes[0]
+          
         self.conv1 = nn.Conv1d(in_chan, base_chan, kernel_size=5, stride=2, padding=2, bias=False)
         self.bn1   = nn.BatchNorm1d(base_chan)
         self.relu  = nn.ReLU(inplace=True)
         
-        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2, padding=1)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2,padding=1)
+        self.avgpool = nn.AdaptiveAvgPool1d((1))
         
-    
-        self.layer1 = self._make_layer( block, base_chan,   layers[0] )
-
-        self.layer2 = self._make_layer( block, base_chan*2, layers[1] )
-
-        self.layer3 = self._make_layer( block, base_chan*4, layers[2] )
-
-        self.layer4 = self._make_layer( block, base_chan*8, layers[3] )
-
-        self.fc = nn.Linear( base_chan*8 * feat_size**2, num_classes )
+        self.layer1 = self._make_layer( block, planes[0], layers[0],           norm_layer=norm_layer )
+        self.layer2 = self._make_layer( block, planes[1], layers[1], stride=2, norm_layer=norm_layer )
+        self.layer3 = self._make_layer( block, planes[2], layers[2], stride=2, norm_layer=norm_layer )
+        self.layer4 = self._make_layer( block, planes[3], layers[3], stride=2, norm_layer=norm_layer )
+        
+        
+        self.fc = nn.Linear( 32*planes[3] * block.expansion , num_classes )
     
     
         for m in self.modules():
@@ -94,34 +84,34 @@ class resnet(nn.Module):
             
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.weight, 0)                       
-#                 n = m.kernel_size * m.out_channels
-#                 m.weight.data.normal_( 0, math.sqrt(2.0 / n) )
-                    
-        
-        
-    def _make_layer(self, block, planes, blocks, stride=1):
+                nn.init.constant_(m.bias,   0)                       
+
+                        # block,   32,     2,       2,
+    def _make_layer(self, block, planes, blocks, stride=1, norm_layer=None):
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm1d
+            
         downsample=None
         
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
-                nn.Conv1d(self.inplanes, planes*block.expansion, 
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm1d(planes * block.expansion)
+                conv1x1(self.inplanes, planes*block.expansion, stride),
+                norm_layer(planes * block.expansion),
             )
+
             
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, stride, downsample, norm_layer))
         
         self.inplanes = planes * block.expansion
         
-        for i in range( 1, blocks ):
-            layers.append( block(self.inplanes, planes, stride, downsample))
+        for _ in range( 1, blocks ):
+            layers.append(block(self.inplanes, planes, norm_layer=norm_layer))
             
         return nn.Sequential(*layers)
             
             
-    def forward(x):
+    def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -132,7 +122,7 @@ class resnet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         
-        x = self.avgpool(x)
+        x = self.maxpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         
