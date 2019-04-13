@@ -1,0 +1,1 @@
+experiment id, user id, activity id, label start, label end
