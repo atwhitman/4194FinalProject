@@ -114,18 +114,15 @@ def load_data(padded=True, split=None, data_dir=None):
         append = str(int(split*100)) + '.npz'
         
     test_file  = data_dir + 'har_test_data'  + append
-    train_file = data_dir + 'har_train_data' + append
-    
-    # open files
     test  = np.load(test_file)
-    train = np.load(train_file)
-    
-    # extract data
-    train_data   = train['data']
-    train_labels = train['labels']
-    
     test_data   = test['data']
     test_labels = test['labels']
+    
+    
+    train_file = data_dir + 'har_train_data' + append    
+    train = np.load(train_file)
+    train_data   = train['data']
+    train_labels = train['labels']    
     
     return train_data, train_labels, test_data, test_labels
 
