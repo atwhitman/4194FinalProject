@@ -54,12 +54,12 @@ class BasicBlock(nn.Module):
         
 class resnet(nn.Module):
     
-    def __init__(self, block, layers, in_chan=6, base_chan=36, num_classes=12):
+    def __init__(self, block, layers, in_chan=6, base_chan=36, num_classes=12, feat_size=5):
         super(resnet, self).__init__() 
         
         norm_layer = nn.BatchNorm1d
         
-        planes = [ base_chan*2**i for i in range(4) ]
+        planes = [ base_chan*2**i for i in range(feat_size) ]
         self.inplanes = planes[0]
           
         self.conv1 = nn.Conv1d(in_chan, base_chan, kernel_size=5, stride=2, padding=2, bias=False)
@@ -73,9 +73,10 @@ class resnet(nn.Module):
         self.layer2 = self._make_layer( block, planes[1], layers[1], stride=2, norm_layer=norm_layer )
         self.layer3 = self._make_layer( block, planes[2], layers[2], stride=2, norm_layer=norm_layer )
         self.layer4 = self._make_layer( block, planes[3], layers[3], stride=2, norm_layer=norm_layer )
+        self.layer5 = self._make_layer( block, planes[4], layers[3], stride=2, norm_layer=norm_layer )
         
         
-        self.fc = nn.Linear( 32*planes[3] * block.expansion , num_classes )
+        self.fc = nn.Linear( 2**feat_size*planes[3] * block.expansion , num_classes )
     
     
         for m in self.modules():
@@ -121,6 +122,7 @@ class resnet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
+        x = self.layer5(x)
         
         x = self.maxpool(x)
         x = x.view(x.size(0), -1)
