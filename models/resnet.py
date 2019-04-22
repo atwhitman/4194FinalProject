@@ -14,7 +14,7 @@ def conv1x1(in_planes, out_planes, stride=1):
 class BasicBlock(nn.Module):
     expansion = 1
     
-    def __init__(self, inplanes, planes, stride=1, downsample=None, norm_layer=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, norm_layer=None, drop_prob=None):
         super(BasicBlock, self).__init__()       
         
         if norm_layer is None:
@@ -31,7 +31,10 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
         
-        print('inplanes {}  planes {}'.format(inplanes, planes))
+        self.drop_prob = drop_prob
+        if drop_prob is not None:
+            self.drop = nn.Dropout(p=drop_prob)
+#         print('inplanes {}  planes {}'.format(inplanes, planes))
         
     def forward(self, x):
         identity = x
@@ -39,6 +42,8 @@ class BasicBlock(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
+        if self.drop_prob is not None:
+            out = self.drop(out)
         
         out = self.conv2(out)
         out = self.bn2(out)
@@ -48,34 +53,34 @@ class BasicBlock(nn.Module):
             
         out += identity
         out = self.relu(out)
-        
+        if self.drop_prob is not None:
+            out = self.drop(out)
         return out       
         
         
 class resnet(nn.Module):
     
-    def __init__(self, block, layers, in_chan=6, base_chan=36, num_classes=12, feat_size=5):
+    def __init__(self, block, layers, in_chan=6, base_chan=36, num_classes=12, drop_prob=None):
         super(resnet, self).__init__() 
         
         norm_layer = nn.BatchNorm1d
         
-        planes = [ base_chan*2**i for i in range(feat_size) ]
+        planes = [ base_chan*2**i for i in range(4) ]
         self.inplanes = planes[0]
           
         self.conv1 = nn.Conv1d(in_chan, base_chan, kernel_size=5, stride=2, padding=2, bias=False)
         self.bn1   = nn.BatchNorm1d(base_chan)
         self.relu  = nn.ReLU(inplace=True)
         
-        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2,padding=1)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         self.avgpool = nn.AdaptiveAvgPool1d((1))
         
-        self.layer1 = self._make_layer( block, planes[0], layers[0],           norm_layer=norm_layer )
-        self.layer2 = self._make_layer( block, planes[1], layers[1], stride=2, norm_layer=norm_layer )
-        self.layer3 = self._make_layer( block, planes[2], layers[2], stride=2, norm_layer=norm_layer )
-        self.layer4 = self._make_layer( block, planes[3], layers[3], stride=2, norm_layer=norm_layer )
-        self.layer5 = self._make_layer( block, planes[4], layers[3], stride=2, norm_layer=norm_layer )
+        self.layer1 = self._make_layer( block, planes[0], layers[0],           norm_layer=norm_layer, drop_prob=drop_prob )
+        self.layer2 = self._make_layer( block, planes[1], layers[1], stride=2, norm_layer=norm_layer, drop_prob=drop_prob )
+        self.layer3 = self._make_layer( block, planes[2], layers[2], stride=2, norm_layer=norm_layer, drop_prob=drop_prob )
+        self.layer4 = self._make_layer( block, planes[3], layers[3], stride=2, norm_layer=norm_layer, drop_prob=drop_prob )
         
-        
+        feat_size=5
         self.fc = nn.Linear( 2**feat_size*planes[3] * block.expansion , num_classes )
     
     
@@ -88,7 +93,7 @@ class resnet(nn.Module):
                 nn.init.constant_(m.bias,   0)                       
 
                         # block,   32,     2,       2,
-    def _make_layer(self, block, planes, blocks, stride=1, norm_layer=None):
+    def _make_layer(self, block, planes, blocks, stride=1, norm_layer=None, drop_prob=None):
         if norm_layer is None:
             norm_layer = nn.BatchNorm1d
             
@@ -102,7 +107,7 @@ class resnet(nn.Module):
 
             
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample, norm_layer))
+        layers.append(block(self.inplanes, planes, stride, downsample, norm_layer, drop_prob))
         
         self.inplanes = planes * block.expansion
         
@@ -122,7 +127,6 @@ class resnet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = self.layer5(x)
         
         x = self.maxpool(x)
         x = x.view(x.size(0), -1)
