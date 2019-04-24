@@ -140,7 +140,9 @@ def resnet18(**kwargs):
     return model
 
 
-
+def resnet34(**kwards):
+    model = resnet(BasicBlock, [3,4,6,3]. **kwargs)
+    return model
 
 
 
